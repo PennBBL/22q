@@ -1,0 +1,87 @@
+{
+  "site": {
+    "title": "Research Lab Dashboard",
+    "subtitle": "Ongoing & Completed Experiments",
+    "institution": "Your Institution · Your Lab Name",
+    "updated": "2026-03-23"
+  },
+  "stats": [
+    { "label": "Active Experiments", "value": "4" },
+    { "label": "Datasets Collected", "value": "12" },
+    { "label": "Publications", "value": "3" },
+    { "label": "Collaborators", "value": "8" }
+  ],
+  "experiments": [
+    {
+      "id": "EXP-001",
+      "title": "Protein Folding Under Variable pH",
+      "status": "ongoing",
+      "start": "2025-09",
+      "end": null,
+      "progress": 65,
+      "description": "Investigating conformational changes in target protein across pH range 4–9 using circular dichroism spectroscopy.",
+      "tags": ["biochemistry", "spectroscopy"]
+    },
+    {
+      "id": "EXP-002",
+      "title": "Thermal Stability Assay — Variant A",
+      "status": "completed",
+      "start": "2025-01",
+      "end": "2025-06",
+      "progress": 100,
+      "description": "Differential scanning fluorimetry used to determine Tm values for 24 protein variants. All replicates finalized.",
+      "tags": ["thermodynamics", "DSF"]
+    },
+    {
+      "id": "EXP-003",
+      "title": "Inhibitor Screen — Library B",
+      "status": "ongoing",
+      "start": "2026-01",
+      "end": null,
+      "progress": 30,
+      "description": "High-throughput screening of 480-compound library against target enzyme. IC50 determination in progress.",
+      "tags": ["drug discovery", "HTS"]
+    },
+    {
+      "id": "EXP-004",
+      "title": "Cryo-EM Structure Determination",
+      "status": "planned",
+      "start": "2026-05",
+      "end": null,
+      "progress": 0,
+      "description": "Structural characterization of purified complex at near-atomic resolution. Beam time allocated.",
+      "tags": ["structural biology", "cryo-EM"]
+    }
+  ],
+  "chart": {
+    "label": "Samples Processed per Month",
+    "months": ["Oct", "Nov", "Dec", "Jan", "Feb", "Mar"],
+    "values": [18, 24, 14, 31, 27, 35]
+  },
+  "publications": [
+    {
+      "year": 2025,
+      "title": "Conformational dynamics of target protein family under physiological stress conditions",
+      "authors": "Smith J, Lee A, Patel R, et al.",
+      "journal": "Journal of Molecular Biology",
+      "doi": "10.1016/j.jmb.2025.00000",
+      "status": "published"
+    },
+    {
+      "year": 2025,
+      "title": "High-throughput thermal profiling reveals novel stabilizing mutations",
+      "authors": "Lee A, Smith J, et al.",
+      "journal": "ACS Chemical Biology",
+      "doi": "10.1021/acschembio.5b00000",
+      "status": "published"
+    },
+    {
+      "year": 2026,
+      "title": "Cryo-EM structure of inhibitor-bound complex at 2.4 Å resolution",
+      "authors": "Patel R, Smith J, et al.",
+      "journal": "Nature Structural & Molecular Biology",
+      "doi": null,
+      "status": "preprint"
+    }
+  ]
+}
