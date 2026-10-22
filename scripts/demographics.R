@@ -35,7 +35,8 @@ data_root <- Sys.getenv("BBLREPO_ROOT_DIR", unset = "/data/secure")
 paths <- list(
   dwh      = file.path(data_root, "bit_dwh"),
   chop_22q = file.path(data_root, "bit_repo/projects_repo/22q/22q_all/chop_penn_data_pull.csv"),
-  study_enroll = file.path(data_root, "bit_dwh/oracle/subject_studyenrol.csv")
+  study_enroll = file.path(data_root, "bit_dwh/oracle/subject_studyenrol.csv"),
+  subject = file.path(data_root, "bit_dwh/oracle/subject.csv")
 )
 
 # ==============================================================================
@@ -87,13 +88,12 @@ study_enroll_raw <- read_csv(paths$study_enroll, show_col_types = FALSE) |>
 # Import Subject Demographics and Correct Family Relationships
 # ==============================================================================
 
-subject_demos_raw <- read.csv("oracle/subject.csv") %>%
-  clean_names() %>%
+subject_demos_raw <- read_csv(paths$subject, show_col_types = FALSE) |>
+  clean_names() |>
   mutate(
-    dobirth = mdy(dobirth),
+    dobirth  = mdy(dobirth),
     dointake = mdy(dointake)
   )
-
 
 # Keep all members of families that contain a CHOP 22q subject
 q22_subjects_with_family <- subject_demos_raw %>%
