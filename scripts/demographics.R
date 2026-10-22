@@ -2,15 +2,11 @@
 # Load Libraries
 # ==============================================================================
 
-library(dplyr)
-library(stringr)
-library(lubridate)
 library(data.table)
-library(tidyverse)
-library(janitor)
 library(knitr)
 library(readxl)
-
+library(janitor)
+library(tidyverse)
 
 # ==============================================================================
 # Helper Functions
@@ -27,14 +23,19 @@ mondf <- function(d1, d2) {
 
 
 # ==============================================================================
-# Set Working Directory
+# Paths
 # ==============================================================================
+# The server path is the default. To run on a desktop, add this line to your
+# ~/.Renviron (once) instead of editing this script:
+#   BBLREPO_ROOT_DIR=/Users/<you>/bblrepo1
+# (usethis::edit_r_environ() in R console to open Renviron file)
 
-# USE THIS WHEN WORKING ON DESKTOP
-#setwd("/Users/mruganks/bblrepo1/bit_dwh")
+data_root <- Sys.getenv("BIT_DATA_ROOT", unset = "/data/secure")
 
-setwd("/data/secure/bit_dwh")
-
+paths <- list(
+  dwh      = file.path(data_root, "bit_dwh"),
+  chop_22q = file.path(data_root, "bit_repo/projects_repo/22q/22q_all/chop_penn_data_pull.csv")
+)
 
 # ==============================================================================
 # Import CHOP 22q Data
@@ -47,13 +48,9 @@ setwd("/data/secure/bit_dwh")
 #   clean_names() %>%
 #   rename_with(~ paste0("chop_", .x))
 
-# Server
-chop_data_raw <- read.csv(
-  "/data/secure/bit_repo/projects_repo/22q/22q_all/chop_penn_data_pull.csv"
-) %>%
-  clean_names() %>%
+chop_data_raw <- read_csv(paths$chop_22q, show_col_types = FALSE) |>
+  clean_names() |>
   rename_with(~ paste0("chop_", .x))
-
 
 # Keep relevant CHOP variables and subjects with q_type == 1
 chop_data_clean <- chop_data_raw %>%
