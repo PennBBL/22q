@@ -95,95 +95,88 @@ subject_demos_raw <- read_csv(paths$subject, show_col_types = FALSE) |>
     dointake = mdy(dointake)
   )
 
-# Keep all members of families that contain a CHOP 22q subject
-q22_subjects_with_family <- subject_demos_raw %>%
-  
-  filter(
-    any(bblid %in% chop_data_clean$bblid),
-    .by = famid
-  ) %>%
-  
-  # Add CHOP information where available
+# ==============================================================================
+# Proband Correction Settings
+# ==============================================================================
+
+child_labels         <- c("Son", "Daughter")
+min_parent_gap_years <- 15  # A Self this much older than the 22q child is assumed to be a parent
+# sex coding: 1 = male, 2 = female
+
+# ==============================================================================
+# Families With a CHOP 22q Subject
+# ==============================================================================
+# Keep every member of any family that includes a CHOP 22q subject,
+# add CHOP info where available, and sort earliest-seen first within family
+
+q22_families <- subject_demos_raw |>
+  filter(any(bblid %in% chop_data_clean$bblid), .by = famid) |>
   left_join(
-    chop_data_clean %>%
-      select(
-        bblid,
-        chop_q_type,
-        chop_q_brkpt,
-        chop_inherited_denovo
-      ),
+    chop_data_clean |>
+      select(bblid, chop_q_type, chop_q_brkpt, chop_inherited_denovo),
     by = "bblid"
-  ) %>%
-  
-  # Sort earliest-seen subjects first within each family
-  arrange(famid, dointake, dobirth, bblid) %>%
-  
+  ) |>
+  arrange(famid, dointake, dobirth, bblid) |> 
+  distinct()
+
+# ==============================================================================
+# Flag Families Where the Proband (Self) Looks Wrong
+# ==============================================================================
+
+q22_family_flags <- q22_families |>
   mutate(
-    
-    # Identify children with 22q
-    is_candidate = rel_to_proband %in% c("Son", "Daughter") &
-      chop_q_type == 1 &
-      !is.na(dointake),
-    
-    # Identify the first eligible child seen in each family
+    is_self  = rel_to_proband %in% "Self",
+    is_child = rel_to_proband %in% child_labels,
+
+    # A CHOP-confirmed 22q child who has an intake date
+    is_candidate = is_child & coalesce(chop_q_type == 1, FALSE) & !is.na(dointake),
+
+    # The earliest-seen candidate in each family
     first_child = is_candidate & cumsum(is_candidate) == 1,
-    
-    # Count the number of subjects currently identified as Self
-    n_self = sum(rel_to_proband == "Self"),
-    
-    # Get sex of the current Self
-    self_sex = sex[rel_to_proband == "Self"][1],
-    
-    # Calculate age difference between Self and first eligible child
-    gap_years = as.numeric(
-      dobirth[first_child][1] -
-        dobirth[rel_to_proband == "Self"][1]
-    ) / 365.25,
-    
-    # If Self is at least 15 years older than the child,
-    # assume the parent was incorrectly entered as Self
+
+    # Family-level facts about the current Self and the first child
+    n_self    = sum(is_self),
+    self_sex  = first(sex[is_self]),
+    self_dob  = first(dobirth[is_self]),
+    child_dob = first(dobirth[first_child]),
+    gap_years = time_length(interval(self_dob, child_dob), "years"),
+
+    # Self is old enough to be the child's parent, so Self was mislabeled
     swap = n_self == 1 &
-      coalesce(gap_years >= 15, FALSE) &
-      self_sex %in% 1:2,
-    
-    # Promote the first child to Self if a swap is needed
-    # or if the family currently has no Self
+      coalesce(gap_years >= min_parent_gap_years, FALSE) &
+      self_sex %in% c(1, 2),
+
+    # Make the first child Self if a swap is needed or there's no Self at all
     promote = swap | n_self == 0,
-    
-    # If the only family member is listed as Son/Daughter,
-    # treat that subject as Self
-    only_child = n() == 1 &
-      rel_to_proband %in% c("Son", "Daughter"),
-    
+
+    # A single-member family listed as Son/Daughter is treated as Self
+    only_child = n() == 1 & is_child,
+
     .by = famid
-  ) %>%
-  
-  # Correct relationship to proband
+  )
+
+
+# ==============================================================================
+# Correct Relationship to Proband
+# ==============================================================================
+
+q22_subjects_with_family <- q22_family_flags |>
   mutate(
     rel_to_proband_original = rel_to_proband,
-    
     rel_to_proband = case_when(
-      swap & rel_to_proband == "Self" & sex == 2 ~ "Mother",
-      swap & rel_to_proband == "Self" & sex == 1 ~ "Father",
-      promote & first_child ~ "Self",
-      only_child ~ "Self",
+      swap & is_self & sex == 2 ~ "Mother",
+      swap & is_self & sex == 1 ~ "Father",
+      promote & first_child     ~ "Self",
+      only_child                ~ "Self",
       .default = rel_to_proband
     )
-  ) %>%
-  
-  # Remove temporary variables
-  select(
-    -c(
-      is_candidate,
-      first_child,
-      n_self,
-      self_sex,
-      gap_years,
-      swap,
-      promote,
-      only_child
-    )
-  )
+  ) |>
+  # Drop helper flags: keep the original columns plus the audit column
+  select(all_of(names(q22_families)), rel_to_proband_original) |> 
+  select(-rel_to_proband_original)
+
+# View edited records
+# q22_subjects_with_family |> filter(rel_to_proband != rel_to_proband_original)
 
 
 # ==============================================================================
