@@ -34,7 +34,8 @@ data_root <- Sys.getenv("BBLREPO_ROOT_DIR", unset = "/data/secure")
 
 paths <- list(
   dwh      = file.path(data_root, "bit_dwh"),
-  chop_22q = file.path(data_root, "bit_repo/projects_repo/22q/22q_all/chop_penn_data_pull.csv")
+  chop_22q = file.path(data_root, "bit_repo/projects_repo/22q/22q_all/chop_penn_data_pull.csv"),
+  study_enroll = file.path(data_root, "bit_dwh/oracle/subject_studyenrol.csv")
 )
 
 # ==============================================================================
@@ -53,6 +54,7 @@ chop_data_raw <- read_csv(paths$chop_22q, show_col_types = FALSE) |>
   rename_with(~ paste0("chop_", .x))
 
 # Keep relevant CHOP variables and subjects with q_type == 1
+# Note: Does not remove any variables from raw data (renames bblid)
 chop_data_clean <- chop_data_raw %>%
   select(
     bblid = chop_bbl_id,
@@ -75,12 +77,10 @@ chop_data_clean <- chop_data_raw %>%
 # Import Study Enrollment Data
 # ==============================================================================
 
-study_enroll_raw <- read.csv("oracle/subject_studyenrol.csv") %>%
-  clean_names() %>%
-  filter(study_status != "not enrolled") %>%
-  mutate(
-    doenroll = as.Date(as.character(doenroll), format = "%m/%d/%Y")
-  )
+study_enroll_raw <- read_csv(paths$study_enroll, show_col_types = FALSE) |>
+  clean_names() |>
+  filter(study_status != "not enrolled") |>
+  mutate(doenroll = mdy(doenroll))
 
 
 # ==============================================================================
