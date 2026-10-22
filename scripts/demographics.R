@@ -135,8 +135,8 @@ q22_family_flags <- q22_families |>
     # Make the first child Self if a swap is needed or there's no Self at all
     promote = swap | n_self == 0,
 
-    # A single-member family listed as Son/Daughter is treated as Self
-    only_child = n() == 1 & is_child,
+    # A family with one person and no Self: that person is Self
+    lone_member = n_distinct(bblid) == 1 & n_self == 0,
 
     .by = famid
   )
@@ -153,7 +153,7 @@ q22_subjects_with_family <- q22_family_flags |>
       swap & is_self & sex == 2 ~ "Mother",
       swap & is_self & sex == 1 ~ "Father",
       promote & first_child     ~ "Self",
-      only_child                ~ "Self",
+      lone_member               ~ "Self",
       .default = rel_to_proband
     )
   ) |>
