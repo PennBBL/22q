@@ -30,13 +30,19 @@ mondf <- function(d1, d2) {
 #   BBLREPO_ROOT_DIR=/Users/<you>/bblrepo1
 # (usethis::edit_r_environ() in R console to open Renviron file)
 
-data_root <- Sys.getenv("BBLREPO_ROOT_DIR", unset = "/data/secure")
+data_root  <- Sys.getenv("BBLREPO_ROOT_DIR", unset = "/data/secure")
+oracle_dir <- file.path(data_root, "bit_dwh/oracle")
+q22_dir    <- file.path(data_root, "bit_repo/projects_repo/22q/22q_all")
 
-paths <- list(
-  dwh      = file.path(data_root, "bit_dwh"),
-  chop_22q = file.path(data_root, "bit_repo/projects_repo/22q/22q_all/chop_penn_data_pull.csv"),
-  study_enroll = file.path(data_root, "bit_dwh/oracle/subject_studyenrol.csv"),
-  subject = file.path(data_root, "bit_dwh/oracle/subject.csv")
+input_paths <- list(
+  chop_pull    = file.path(q22_dir,    "chop_penn_data_pull.csv"),
+  subject      = file.path(oracle_dir, "subject.csv"),
+  study_enroll = file.path(oracle_dir, "subject_studyenrol.csv")
+)
+
+output_paths <- list(
+  family_demos = file.path(q22_dir, "demographics_22q_family.csv"),
+  q22_demos    = file.path(q22_dir, "demographics_22q.csv")
 )
 
 # ==============================================================================
@@ -50,7 +56,7 @@ paths <- list(
 #   clean_names() %>%
 #   rename_with(~ paste0("chop_", .x))
 
-chop_data_raw <- read_csv(paths$chop_22q, show_col_types = FALSE) |>
+chop_data_raw <- read_csv(input_paths$chop_pull, show_col_types = FALSE) |>
   clean_names() |>
   rename_with(~ paste0("chop_", .x))
 
@@ -78,7 +84,7 @@ chop_data_clean <- chop_data_raw %>%
 # Import Study Enrollment Data
 # ==============================================================================
 
-study_enroll_raw <- read_csv(paths$study_enroll, show_col_types = FALSE) |>
+study_enroll_raw <- read_csv(input_paths$study_enroll, show_col_types = FALSE) |>
   clean_names() |>
   filter(study_status != "not enrolled") |>
   mutate(doenroll = mdy(doenroll))
@@ -88,7 +94,7 @@ study_enroll_raw <- read_csv(paths$study_enroll, show_col_types = FALSE) |>
 # Import Subject Demographics and Correct Family Relationships
 # ==============================================================================
 
-subject_demos_raw <- read_csv(paths$subject, show_col_types = FALSE) |>
+subject_demos_raw <- read_csv(input_paths$subject, show_col_types = FALSE) |>
   clean_names() |>
   mutate(
     dobirth  = mdy(dobirth),
@@ -180,34 +186,32 @@ q22_subjects_with_family <- q22_family_flags |>
 
 
 # ==============================================================================
-# Create Subject Demographics Dataset
+# Final Subject Demographics
+# ==============================================================================
+# One row per subject: the most recent intake, with age at that intake
+
+subject_demos <- q22_subjects_with_family |>
+  mutate(age_at_intake = time_length(interval(dobirth, dointake), "years")) |>
+  slice_max(dointake, n = 1, with_ties = FALSE, by = bblid)
+
+
+# ==============================================================================
+# Write Output
 # ==============================================================================
 
-subject_demos <- q22_subjects_with_family %>%
-  
-  # Calculate age at intake
-  mutate(
-    age_at_intake = interval(dobirth, dointake) / years(1)
-  ) %>%
-  
-  # Keep the most recent intake for each subject
-  group_by(bblid) %>%
-  slice_max(dointake, n = 1, with_ties = FALSE) %>%
-  ungroup()
-
-write.csv(subject_demos,"/data/secure/bit_repo/projects_repo/22q/22q_all/demographics_22q_family.csv", row.names = F)
+write_csv(subject_demos, output_paths$family_demos)
+message("Wrote ", nrow(subject_demos), " subjects to ", output_paths$family_demos)
 
 # ==============================================================================
 # Create Final 22q Subject Dataset
 # ==============================================================================
 
 # Keep subjects identified as Self after correcting family relationships
-subject_22q <- subject_demos %>%
+subject_22q <- subject_demos |>
   filter(
     rel_to_proband == "Self",
     bblid %in% chop_data_clean$bblid
-  ) 
+  )
 
-
-write.csv(subject_22q,"/data/secure/bit_repo/projects_repo/22q/22q_all/demographics_22q.csv", row.names = F)
-
+write_csv(subject_22q, output_paths$q22_demos)
+message("Wrote ", nrow(subject_22q), " subjects to ", output_paths$q22_demos)
