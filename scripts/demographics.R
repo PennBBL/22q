@@ -30,7 +30,7 @@ mondf <- function(d1, d2) {
 #   BBLREPO_ROOT_DIR=/Users/<you>/bblrepo1
 # (usethis::edit_r_environ() in R console to open Renviron file)
 
-data_root <- Sys.getenv("BIT_DATA_ROOT", unset = "/data/secure")
+data_root <- Sys.getenv("BBLREPO_ROOT_DIR", unset = "/data/secure")
 
 paths <- list(
   dwh      = file.path(data_root, "bit_dwh"),
