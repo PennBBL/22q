@@ -35,12 +35,6 @@ output_paths <- list(
 # Import CHOP 22q Data
 # ==============================================================================
 
-# Desktop
-# chop_data_raw <- read.csv(
-#   "/Users/mruganks/bblrepo1/bit_repo/projects_repo/22q/22q_all/chop_penn_data_pull.csv"
-# ) %>%
-#   clean_names() %>%
-#   rename_with(~ paste0("chop_", .x))
 
 chop_data_raw <- read_csv(input_paths$chop_pull, show_col_types = FALSE) |>
   clean_names() |>
