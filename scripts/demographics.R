@@ -121,11 +121,15 @@ q22_family_flags <- q22_families |>
     first_child = is_candidate & cumsum(is_candidate) == 1,
 
     # Family-level facts about the current Self and the first child
-    n_self    = sum(is_self),
-    self_sex  = first(sex[is_self]),
-    self_dob  = first(dobirth[is_self]),
-    child_dob = first(dobirth[first_child]),
+    # ([1] returns NA when a family has no Self or no candidate)
+    n_self    = n_distinct(bblid[is_self]),
+    self_sex  = sex[is_self][1],
+    self_dob  = dobirth[is_self][1],
+    child_dob = dobirth[first_child][1],
     gap_years = time_length(interval(self_dob, child_dob), "years"),
+
+    # Which side of the family the old Self is on (for grandparents, aunts, uncles)
+    self_side = case_when(self_sex == 2 ~ "Maternal", self_sex == 1 ~ "Paternal"),
 
     # Self is old enough to be the child's parent, so Self was mislabeled
     swap = n_self == 1 &
@@ -150,48 +154,132 @@ q22_subjects_with_family <- q22_family_flags |>
   mutate(
     rel_to_proband_original = rel_to_proband,
     rel_to_proband = case_when(
+      # Old Self becomes the child's parent
       swap & is_self & sex == 2 ~ "Mother",
       swap & is_self & sex == 1 ~ "Father",
-      promote & first_child     ~ "Self",
-      lone_member               ~ "Self",
+
+      # New Self
+      promote & first_child ~ "Self",
+      lone_member           ~ "Self",
+
+      # Rest of the family, relabeled relative to the new Self
+      # (Brother/Sister are intentionally left unchanged)
+      swap & rel_to_proband == "Son"                       ~ "Brother",
+      swap & rel_to_proband == "Daughter"                  ~ "Sister",
+      swap & rel_to_proband == "Spouse/Partner" & sex == 2 ~ "Mother",
+      swap & rel_to_proband == "Spouse/Partner" & sex == 1 ~ "Father",
+      swap & rel_to_proband == "Mother"                    ~ paste(self_side, "Grandmother"),
+      swap & rel_to_proband == "Father"                    ~ paste(self_side, "Grandfather"),
+
       .default = rel_to_proband
     )
   ) |>
   # Drop helper flags: keep the original columns plus the audit column
-  select(all_of(names(q22_families)), rel_to_proband_original) |> 
-  select(-rel_to_proband_original)
+  select(all_of(names(q22_families)), rel_to_proband_original)
 
 # View edited records
-# q22_subjects_with_family |> filter(rel_to_proband != rel_to_proband_original)
+q22_subjects_with_familyx |> filter(rel_to_proband != rel_to_proband_original) |> select(bblid, famid, rel_to_proband, rel_to_proband_original, chop_q_type) |> View()
 
+# ==============================================================================
+# Create Proband Variable
+# ==============================================================================
+# Proband = TRUE for 22q proband who most recently participated (e.g. 22q long)
+
+# Relationships that can be the proband (must also be CHOP 22q)
+proband_labels <- c("Self", "Brother", "Sister", "Maternal half-brother", "Son", "Daughter")
+
+# Enrollments that don't count as study participation
+excluded_protocols <- c("000000 - Nostudy")
+
+# Latest enrollment
+latest_enrollment <- study_enroll_raw |>
+  filter(!protocol %in% excluded_protocols) |>
+  slice_max(doenroll, n = 1, with_ties = FALSE, by = bblid) |>
+  select(
+    bblid,
+    last_enroll          = doenroll,
+    last_enroll_protocol = protocol,
+    last_enroll_status   = study_status
+  )
+
+subject_demos <- q22_subjects_with_family |>
+  mutate(age_at_intake = time_length(interval(dobirth, dointake), "years")) |>
+  slice_max(dointake, n = 1, with_ties = FALSE, by = bblid) |>
+  left_join(latest_enrollment, by = "bblid", relationship = "one-to-one") |>
+  mutate(
+    is_proband_eligible = rel_to_proband %in% proband_labels &
+      coalesce(chop_q_type == 1, FALSE)
+  ) |>
+  # Eligible first, then most recent enrollment, then Self on ties
+  arrange(famid, desc(is_proband_eligible), desc(last_enroll), rel_to_proband != "Self") |>
+  mutate(
+    proband = is_proband_eligible & row_number() == 1,
+    .by = famid
+  ) |>
+  select(-is_proband_eligible) |>
+  arrange(famid, bblid)
 
 # ==============================================================================
 # Final Subject Demographics
 # ==============================================================================
 # One row per subject: the most recent intake, with age at that intake
 
-subject_demos <- q22_subjects_with_family |>
+family_demos <- q22_subjects_with_family |>
   mutate(age_at_intake = time_length(interval(dobirth, dointake), "years")) |>
   slice_max(dointake, n = 1, with_ties = FALSE, by = bblid)
 
-
 # ==============================================================================
-# Write Output
+# Sanity Checks: Family Structure
 # ==============================================================================
 
-write_csv(subject_demos, output_paths$family_demos)
-message("Wrote ", nrow(subject_demos), " subjects to ", output_paths$family_demos)
+# family_checks <- subject_demos |>
+#   summarise(
+#     n_members   = n_distinct(bblid),
+#     n_self      = n_distinct(bblid[rel_to_proband %in% "Self"]),
+#     n_proband   = n_distinct(bblid[proband]),
+#     n_mother    = n_distinct(bblid[rel_to_proband %in% "Mother"]),
+#     n_father    = n_distinct(bblid[rel_to_proband %in% "Father"]),
+#     .by = famid
+#   ) |>
+#   mutate(
+#     no_self       = n_self == 0,
+#     multi_self    = n_self > 1,
+#     no_proband    = n_proband == 0,
+#     multi_proband = n_proband > 1,
+#     multi_mother  = n_mother > 1,
+#     multi_father  = n_father > 1
+#   )
+
+# # Families that fail any check
+# family_problems <- family_checks |>
+#   filter(if_any(no_self:multi_father))
+
+# # How many families fail each check
+# family_checks |>
+#   summarise(across(no_self:multi_father, sum))
+
+# family_problems |> print(n = Inf)
+
+# Note, families with more than 1 Mother, Father, or Self, all seem valid.
+# With the Proband var it won't matter as much.
 
 # ==============================================================================
 # Create Final 22q Subject Dataset
 # ==============================================================================
 
 # Keep subjects identified as Self after correcting family relationships
-subject_22q <- subject_demos |>
+subject_22q <- family_demos |>
   filter(
     rel_to_proband == "Self",
     bblid %in% chop_data_clean$bblid
   )
+
+# ==============================================================================
+# Write Output
+# ==============================================================================
+
+write_csv(family_demos, output_paths$family_demos)
+message("Wrote ", nrow(subject_demos), " subjects to ", output_paths$family_demos)
 
 write_csv(subject_22q, output_paths$q22_demos)
 message("Wrote ", nrow(subject_22q), " subjects to ", output_paths$q22_demos)
