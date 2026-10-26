@@ -9,7 +9,7 @@ library(janitor)
 library(tidyverse)
 
 # ==============================================================================
-# Paths
+# Paths ----
 # ==============================================================================
 # The server path is the default. To run on a desktop, add this line to your
 # ~/.Renviron (once) instead of editing this script:
@@ -32,7 +32,7 @@ output_paths <- list(
 )
 
 # ==============================================================================
-# Import CHOP 22q Data
+# Import CHOP 22q Data ----
 # ==============================================================================
 
 
@@ -61,7 +61,7 @@ chop_data_clean <- chop_data_raw %>%
 
 
 # ==============================================================================
-# Import Study Enrollment Data
+# Import Study Enrollment Data ----
 # ==============================================================================
 
 study_enroll_raw <- read_csv(input_paths$study_enroll, show_col_types = FALSE) |>
@@ -71,7 +71,7 @@ study_enroll_raw <- read_csv(input_paths$study_enroll, show_col_types = FALSE) |
 
 
 # ==============================================================================
-# Import Subject Demographics and Correct Family Relationships
+# Import Subject Demographics and Correct Family Relationships ----
 # ==============================================================================
 
 subject_demos_raw <- read_csv(input_paths$subject, show_col_types = FALSE) |>
@@ -82,7 +82,7 @@ subject_demos_raw <- read_csv(input_paths$subject, show_col_types = FALSE) |>
   )
 
 # ==============================================================================
-# Proband Correction Settings
+# Proband Correction Settings ----
 # ==============================================================================
 
 child_labels         <- c("Son", "Daughter")
@@ -90,7 +90,7 @@ min_parent_gap_years <- 15  # A Self this much older than the 22q child is assum
 # sex coding: 1 = male, 2 = female
 
 # ==============================================================================
-# Families With a CHOP 22q Subject
+# Families With a CHOP 22q Subject ----
 # ==============================================================================
 # Keep every member of any family that includes a CHOP 22q subject,
 # add CHOP info where available, and sort earliest-seen first within family
@@ -106,7 +106,7 @@ q22_families <- subject_demos_raw |>
   distinct()
 
 # ==============================================================================
-# Flag Families Where the Proband (Self) Looks Wrong
+# Flag Families Where the Proband (Self) Looks Wrong ----
 # ==============================================================================
 
 q22_family_flags <- q22_families |>
@@ -147,7 +147,7 @@ q22_family_flags <- q22_families |>
 
 
 # ==============================================================================
-# Correct Relationship to Proband
+# Correct Relationship to Proband ----
 # ==============================================================================
 
 q22_subjects_with_family <- q22_family_flags |>
@@ -181,7 +181,7 @@ q22_subjects_with_family <- q22_family_flags |>
 # q22_subjects_with_family |> filter(rel_to_proband != rel_to_proband_original) |> select(bblid, famid, rel_to_proband, rel_to_proband_original, chop_q_type) |> View()
 
 # ==============================================================================
-# Create Proband Variable
+# Create Proband Variable ----
 # ==============================================================================
 # Proband = TRUE for 22q proband who most recently participated (e.g. 22q long)
 
@@ -203,7 +203,7 @@ latest_enrollment <- study_enroll_raw |>
   )
 
 # ==============================================================================
-# Final Subject Demographics
+# Final Subject Demographics ----
 # ==============================================================================
 # One row per subject: the most recent intake, with age at that intake
 
@@ -225,7 +225,7 @@ family_demos <- q22_subjects_with_family |>
   arrange(famid, bblid)
 
 # ==============================================================================
-# Sanity Checks: Sex vs. Relationship
+# Sanity Checks: Sex vs. Relationship ----
 # ==============================================================================
 
 # # Expected sex for gendered relationships (1 = male, 2 = female)
@@ -256,7 +256,9 @@ family_demos <- q22_subjects_with_family |>
 # sex_rel_mismatches |> print(n = Inf)
 
 # ==============================================================================
-# Manual fixes -> based on sex_rel_mismatches and names. 
+# Manual fixes ----
+# Based on sex_rel_mismatches and names. 
+# Two families with 1+ Self
 # ==============================================================================
 sex_fixes = tribble(
   ~bblid, ~rel_to_proband, ~sex,
@@ -272,68 +274,114 @@ sex_fixes = tribble(
   25578, "Father", 1, # Sex 2 -> 1, fname=Alfred
   21549, "Father", 1, # Sex 2 -> 1, fname=David
   23921, "Brother", 1, # Sex 2 -> 1, fname=Elias
+  21494, "Mother", 2, # Sex 1 -> 2 fname=Chris (ambig.)
   26470, "Father", 1, # Rel Mother -> Father (fname=Franklin)
-  21494, "Father", 1, # Rel Mother -> Father fname=Chris (ambig.)
   20136, "Mother", 1, # Rel Father -> Mother, fname=Amy
   20106, "Mother", 2 # Rel Father -> Mother, fname=Samantha
 )
 
-family_demos = family_demos |> 
-  rows_update(sex_fixes, by="bblid")
+# Two Self: 19537, 19538 both del
+# Two Self: 21623-no del, 24309-22q
+rel_fixes = tribble(
+  ~bblid, ~rel_to_proband,
+  19537, "Sister", # Keeping first enrolled as Self
+  21623, "Sister" # No deletion
+)
+
+# Update inherited/denovo for the two siblings with deletion
+denovo_fixes = tribble(
+  ~bblid, ~chop_inherited_denovo,
+  19538, 1
+)
+
+
+family_demos_fixed = family_demos |> 
+  rows_update(sex_fixes, by="bblid") |> 
+  rows_update(rel_fixes, by="bblid") |> 
+  rows_update(denovo_fixes, by="bblid")
 
 # ==============================================================================
-# Sanity Checks: Family Structure
+# Sanity Checks: Family Structure ----
 # ==============================================================================
 
-family_checks <- family_demos |>
-  summarise(
-    n_members   = n_distinct(bblid),
-    n_self      = n_distinct(bblid[rel_to_proband %in% "Self"]),
-    n_proband   = n_distinct(bblid[proband]),
-    n_mother    = n_distinct(bblid[rel_to_proband %in% "Mother"]),
-    n_father    = n_distinct(bblid[rel_to_proband %in% "Father"]),
-    .by = famid
-  ) |>
-  mutate(
-    no_self       = n_self == 0,
-    multi_self    = n_self > 1,
-    no_proband    = n_proband == 0,
-    multi_proband = n_proband > 1,
-    multi_mother  = n_mother > 1,
-    multi_father  = n_father > 1
-  )
+# family_checks <- family_demos_fixed |>
+#   summarise(
+#     n_members   = n_distinct(bblid),
+#     n_self      = n_distinct(bblid[rel_to_proband %in% "Self"]),
+#     n_proband   = n_distinct(bblid[proband]),
+#     n_mother    = n_distinct(bblid[rel_to_proband %in% "Mother"]),
+#     n_father    = n_distinct(bblid[rel_to_proband %in% "Father"]),
+#     .by = famid
+#   ) |>
+#   mutate(
+#     no_self       = n_self == 0,
+#     multi_self    = n_self > 1,
+#     no_proband    = n_proband == 0,
+#     multi_proband = n_proband > 1,
+#     multi_mother  = n_mother > 1,
+#     multi_father  = n_father > 1
+#   )
 
-# Families that fail any check
-family_problems <- family_checks |>
-  filter(if_any(no_self:multi_father))
+# # Families that fail any check
+# family_problems <- family_checks |>
+#   filter(if_any(no_self:multi_father))
 
-# How many families fail each check
-family_checks |>
-  summarise(across(no_self:multi_father, sum))
+# # How many families fail each check
+# family_checks |>
+#   summarise(across(no_self:multi_father, sum))
 
-family_problems |> print(n = Inf)
+# family_problems |> print(n = Inf)
 
 # Note, families with more than 1 Mother, Father, or Self, all seem valid.
 # With the Proband var it won't matter as much.
 
+# ==============================================================================
+# Merge Duplicate Participant IDs ----
+# ==============================================================================
+# Each row merges drop_bblid into keep_bblid. Values from keep_bblid win;
+# drop_bblid only fills in where keep_bblid is NA.
+
+id_merges <- tribble(
+  ~keep_bblid, ~drop_bblid,
+  21447,       24786,   
+  20000,       20869,
+  24090,       20001,
+  23393,       20459,
+  24096,       24179,
+  21400,       21398, 
+  21466,       20444, 
+  24341,       20805, 
+  22093,       20040,
+  19693,       21240
+)
+
+# The records being merged away, relabeled with the favored ID
+merge_fallback <- family_demos_fixed |>
+  inner_join(id_merges, join_by(bblid == drop_bblid)) |>
+  mutate(bblid = keep_bblid) |>
+  select(-keep_bblid)
+
+family_demos_clean <- family_demos_fixed |>
+  filter(!bblid %in% id_merges$drop_bblid) |>
+  rows_patch(merge_fallback, by = "bblid")
 
 # ==============================================================================
-# Create Final 22q Subject Dataset
+# Create Final 22q Subject Dataset ----
 # ==============================================================================
 
 # Keep subjects identified as Self after correcting family relationships
-subject_22q <- family_demos |>
+subject_demos_clean <- family_demos_clean |>
   filter(
-    rel_to_proband == "Self",
+    proband==TRUE,
     bblid %in% chop_data_clean$bblid
   )
 
 # ==============================================================================
-# Write Output
+# Write Output ----
 # ==============================================================================
 
-write_csv(family_demos, output_paths$family_demos)
+write_csv(family_demos_clean, output_paths$family_demos)
 message("Wrote ", nrow(subject_demos), " subjects to ", output_paths$family_demos)
 
-write_csv(subject_22q, output_paths$q22_demos)
+write_csv(subject_demos_clean, output_paths$q22_demos)
 message("Wrote ", nrow(subject_22q), " subjects to ", output_paths$q22_demos)
