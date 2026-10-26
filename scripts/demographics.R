@@ -178,7 +178,7 @@ q22_subjects_with_family <- q22_family_flags |>
   select(all_of(names(q22_families)), rel_to_proband_original)
 
 # View edited records
-q22_subjects_with_familyx |> filter(rel_to_proband != rel_to_proband_original) |> select(bblid, famid, rel_to_proband, rel_to_proband_original, chop_q_type) |> View()
+# q22_subjects_with_family |> filter(rel_to_proband != rel_to_proband_original) |> select(bblid, famid, rel_to_proband, rel_to_proband_original, chop_q_type) |> View()
 
 # ==============================================================================
 # Create Proband Variable
@@ -202,7 +202,12 @@ latest_enrollment <- study_enroll_raw |>
     last_enroll_status   = study_status
   )
 
-subject_demos <- q22_subjects_with_family |>
+# ==============================================================================
+# Final Subject Demographics
+# ==============================================================================
+# One row per subject: the most recent intake, with age at that intake
+
+family_demos <- q22_subjects_with_family |>
   mutate(age_at_intake = time_length(interval(dobirth, dointake), "years")) |>
   slice_max(dointake, n = 1, with_ties = FALSE, by = bblid) |>
   left_join(latest_enrollment, by = "bblid", relationship = "one-to-one") |>
@@ -220,48 +225,97 @@ subject_demos <- q22_subjects_with_family |>
   arrange(famid, bblid)
 
 # ==============================================================================
-# Final Subject Demographics
+# Sanity Checks: Sex vs. Relationship
 # ==============================================================================
-# One row per subject: the most recent intake, with age at that intake
 
-family_demos <- q22_subjects_with_family |>
-  mutate(age_at_intake = time_length(interval(dobirth, dointake), "years")) |>
-  slice_max(dointake, n = 1, with_ties = FALSE, by = bblid)
+# # Expected sex for gendered relationships (1 = male, 2 = female)
+# sex_by_relationship <- tribble(
+#   ~rel_to_proband, ~expected_sex,
+#   "Mother",        2,
+#   "Father",        1,
+#   "Sister",        2,
+#   "Brother",       1
+# )
+
+# sex_rel_mismatches <- subject_demos |>
+#   inner_join(sex_by_relationship, by = "rel_to_proband") |>
+#   filter(sex != expected_sex) |>
+#   mutate(
+#     # Sort in the same order as the lookup table
+#     rel_to_proband = factor(rel_to_proband, levels = sex_by_relationship$rel_to_proband)
+#   ) |>
+#   select(
+#     rel_to_proband, sex, expected_sex, famid, bblid,
+#     rel_to_proband_original, dobirth, proband
+#   ) |>
+#   arrange(rel_to_proband, famid, bblid)
+
+# # How many of each mismatch
+# count(sex_rel_mismatches, rel_to_proband)
+
+# sex_rel_mismatches |> print(n = Inf)
+
+# ==============================================================================
+# Manual fixes -> based on sex_rel_mismatches and names. 
+# ==============================================================================
+sex_fixes = tribble(
+  ~bblid, ~rel_to_proband, ~sex,
+  24280, "Mother", 2, # Sex 3 -> 2
+  24109, "Mother", 2, # Sex 1 -> 2, fname=Stacey? (ambig.)
+  20459, "Mother", 2, # Sex 1 -> 2, fname=Jennifer (no dob)
+  20478, "Mother", 2, # Sex 1 -> 2, fname=Maria (no dob)
+  25577, "Mother", 2, # Sex 1 -> 2, fname=Christina
+  23879, "Mother", 1, # Sex 1 -> 2, fname=Michele (ambig?)
+  25800, "Father", 1, # Sex 2 -> 1, fname=Zachary
+  24091, "Father", 1, # Sex 2 -> 1, fname=Kevin
+  23092, "Father", 1, # Sex 2 -> 1, fname=Eric
+  25578, "Father", 1, # Sex 2 -> 1, fname=Alfred
+  21549, "Father", 1, # Sex 2 -> 1, fname=David
+  23921, "Brother", 1, # Sex 2 -> 1, fname=Elias
+  26470, "Father", 1, # Rel Mother -> Father (fname=Franklin)
+  21494, "Father", 1, # Rel Mother -> Father fname=Chris (ambig.)
+  20136, "Mother", 1, # Rel Father -> Mother, fname=Amy
+  20106, "Mother", 2 # Rel Father -> Mother, fname=Samantha
+)
+
+family_demos = family_demos |> 
+  rows_update(sex_fixes, by="bblid")
 
 # ==============================================================================
 # Sanity Checks: Family Structure
 # ==============================================================================
 
-# family_checks <- subject_demos |>
-#   summarise(
-#     n_members   = n_distinct(bblid),
-#     n_self      = n_distinct(bblid[rel_to_proband %in% "Self"]),
-#     n_proband   = n_distinct(bblid[proband]),
-#     n_mother    = n_distinct(bblid[rel_to_proband %in% "Mother"]),
-#     n_father    = n_distinct(bblid[rel_to_proband %in% "Father"]),
-#     .by = famid
-#   ) |>
-#   mutate(
-#     no_self       = n_self == 0,
-#     multi_self    = n_self > 1,
-#     no_proband    = n_proband == 0,
-#     multi_proband = n_proband > 1,
-#     multi_mother  = n_mother > 1,
-#     multi_father  = n_father > 1
-#   )
+family_checks <- family_demos |>
+  summarise(
+    n_members   = n_distinct(bblid),
+    n_self      = n_distinct(bblid[rel_to_proband %in% "Self"]),
+    n_proband   = n_distinct(bblid[proband]),
+    n_mother    = n_distinct(bblid[rel_to_proband %in% "Mother"]),
+    n_father    = n_distinct(bblid[rel_to_proband %in% "Father"]),
+    .by = famid
+  ) |>
+  mutate(
+    no_self       = n_self == 0,
+    multi_self    = n_self > 1,
+    no_proband    = n_proband == 0,
+    multi_proband = n_proband > 1,
+    multi_mother  = n_mother > 1,
+    multi_father  = n_father > 1
+  )
 
-# # Families that fail any check
-# family_problems <- family_checks |>
-#   filter(if_any(no_self:multi_father))
+# Families that fail any check
+family_problems <- family_checks |>
+  filter(if_any(no_self:multi_father))
 
-# # How many families fail each check
-# family_checks |>
-#   summarise(across(no_self:multi_father, sum))
+# How many families fail each check
+family_checks |>
+  summarise(across(no_self:multi_father, sum))
 
-# family_problems |> print(n = Inf)
+family_problems |> print(n = Inf)
 
 # Note, families with more than 1 Mother, Father, or Self, all seem valid.
 # With the Proband var it won't matter as much.
+
 
 # ==============================================================================
 # Create Final 22q Subject Dataset
