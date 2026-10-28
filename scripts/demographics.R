@@ -23,12 +23,16 @@ q22_dir    <- file.path(data_root, "bit_repo/projects_repo/22q/22q_all")
 input_paths <- list(
   chop_pull    = file.path(q22_dir,    "chop_penn_data_pull.csv"),
   subject      = file.path(oracle_dir, "subject.csv"),
-  study_enroll = file.path(oracle_dir, "subject_studyenrol.csv")
+  study_enroll = file.path(oracle_dir, "subject_studyenrol.csv"),
+  subject_ext_demos = file.path(oracle_dir, "subject_extdemos.csv")
 )
 
 output_paths <- list(
   family_demos = file.path(q22_dir, "demographics_22q_and_family.csv"),
-  q22_demos    = file.path(q22_dir, "demographics_22q.csv")
+  height_weight_bmi = file.path(q22_dir, "height_weight_bmi_22q_and_family.csv"),
+  education_family = file.path(q22_dir, "education_22q_and_family.csv"),
+  ses_oracle_family = file.path(q22_dir, "ses_oracle_22q_and_family.csv")
+  # q22_demos    = file.path(q22_dir, "demographics_22q.csv")
 )
 
 # ==============================================================================
@@ -377,11 +381,54 @@ family_demos_clean <- family_demos_fixed |>
 #   )
 
 # ==============================================================================
+# Import Extended Demographics ----
+# ==============================================================================
+
+subject_ext_demos <- read_csv(input_paths$subject_ext_demos, show_col_types=FALSE) %>%
+  clean_names() %>%
+  filter(bblid %in% family_demos_clean$bblid) |> 
+  mutate(
+    docollect = as.Date(as.character(docollect), format = "%m/%d/%Y")
+  ) %>%
+  
+  # Keep the most recent extended demographics record
+  group_by(bblid) %>%
+  slice_max(docollect, n = 1, with_ties = FALSE) %>%
+  ungroup() 
+
+height_weight_bmi = family_demos_clean |> 
+  select(bblid, famid, rel_to_proband, proband) |> 
+  right_join(
+    subject_ext_demos |> select(bblid, height, weight, bmi)
+  )
+
+education_family = family_demos_clean |> 
+  select(bblid, famid, rel_to_proband, proband) |> 
+  right_join(
+    subject_ext_demos |> select(bblid, contains("edu"))
+  )
+
+ses_oracle_family = family_demos_clean |> 
+  select(bblid, famid, rel_to_proband, proband) |> 
+  right_join(
+    subject_ext_demos |> select(bblid, contains("ses"))
+  )
+
+# ==============================================================================
 # Write Output ----
 # ==============================================================================
 
 write_csv(family_demos_clean, output_paths$family_demos)
 message("Wrote ", nrow(family_demos_clean), " subjects to ", output_paths$family_demos)
+
+write_csv(height_weight_bmi, output_paths$height_weight_bmi)
+message("Wrote ", nrow(height_weight_bmi), " subjects to ", output_paths$height_weight_bmi)
+
+write_csv(education_family, output_paths$education_family)
+message("Wrote ", nrow(education_family), " subjects to ", output_paths$education_family)
+
+write_csv(ses_oracle_family, output_paths$ses_oracle_family)
+message("Wrote ", nrow(ses_oracle_family), " subjects to ", output_paths$ses_oracle_family)
 
 # Only outputting family file, can be filtered to Proband, or Self or deleted
 # write_csv(subject_demos_clean, output_paths$q22_demos)
