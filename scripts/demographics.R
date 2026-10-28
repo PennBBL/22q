@@ -267,7 +267,7 @@ sex_fixes = tribble(
   20459, "Mother", 2, # Sex 1 -> 2, fname=Jennifer (no dob)
   20478, "Mother", 2, # Sex 1 -> 2, fname=Maria (no dob)
   25577, "Mother", 2, # Sex 1 -> 2, fname=Christina
-  23879, "Mother", 1, # Sex 1 -> 2, fname=Michele (ambig?)
+  23879, "Mother", 2, # Sex 1 -> 2, fname=Michele (ambig?)
   25800, "Father", 1, # Sex 2 -> 1, fname=Zachary
   24091, "Father", 1, # Sex 2 -> 1, fname=Kevin
   23092, "Father", 1, # Sex 2 -> 1, fname=Eric
@@ -276,7 +276,7 @@ sex_fixes = tribble(
   23921, "Brother", 1, # Sex 2 -> 1, fname=Elias
   21494, "Mother", 2, # Sex 1 -> 2 fname=Chris (ambig.)
   26470, "Father", 1, # Rel Mother -> Father (fname=Franklin)
-  20136, "Mother", 1, # Rel Father -> Mother, fname=Amy
+  20136, "Mother", 2, # Rel Father -> Mother, fname=Amy
   20106, "Mother", 2 # Rel Father -> Mother, fname=Samantha
 )
 
