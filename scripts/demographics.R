@@ -27,7 +27,7 @@ input_paths <- list(
 )
 
 output_paths <- list(
-  family_demos = file.path(q22_dir, "demographics_22q_family.csv"),
+  family_demos = file.path(q22_dir, "demographics_22q_and_family.csv"),
   q22_demos    = file.path(q22_dir, "demographics_22q.csv")
 )
 
@@ -366,15 +366,15 @@ family_demos_clean <- family_demos_fixed |>
   rows_patch(merge_fallback, by = "bblid")
 
 # ==============================================================================
-# Create Final 22q Subject Dataset ----
+# Create Final 22q Subject Dataset (Not generated) ----
 # ==============================================================================
 
 # Keep subjects identified as Self after correcting family relationships
-subject_demos_clean <- family_demos_clean |>
-  filter(
-    proband==TRUE,
-    bblid %in% chop_data_clean$bblid
-  )
+# subject_demos_clean <- family_demos_clean |>
+#   filter(
+#     !rel_to_proband %in% c("Mother", "Father"),
+#     bblid %in% chop_data_clean$bblid
+#   )
 
 # ==============================================================================
 # Write Output ----
@@ -383,5 +383,6 @@ subject_demos_clean <- family_demos_clean |>
 write_csv(family_demos_clean, output_paths$family_demos)
 message("Wrote ", nrow(subject_demos), " subjects to ", output_paths$family_demos)
 
-write_csv(subject_demos_clean, output_paths$q22_demos)
-message("Wrote ", nrow(subject_22q), " subjects to ", output_paths$q22_demos)
+# Only outputting family file, can be filtered to Proband, or Self or deleted
+# write_csv(subject_demos_clean, output_paths$q22_demos)
+# message("Wrote ", nrow(subject_22q), " subjects to ", output_paths$q22_demos)
