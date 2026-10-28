@@ -381,7 +381,7 @@ family_demos_clean <- family_demos_fixed |>
 # ==============================================================================
 
 write_csv(family_demos_clean, output_paths$family_demos)
-message("Wrote ", nrow(subject_demos), " subjects to ", output_paths$family_demos)
+message("Wrote ", nrow(family_demos_clean), " subjects to ", output_paths$family_demos)
 
 # Only outputting family file, can be filtered to Proband, or Self or deleted
 # write_csv(subject_demos_clean, output_paths$q22_demos)
