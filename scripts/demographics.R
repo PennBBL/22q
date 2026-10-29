@@ -225,7 +225,11 @@ family_demos <- q22_subjects_with_family |>
     proband = is_proband_eligible & row_number() == 1,
     .by = famid
   ) |>
-  select(-is_proband_eligible) |>
+  # Drop name columns, and all NA columns
+  select(
+    -c(
+      is_proband_eligible
+    )) |>
   arrange(famid, bblid)
 
 # ==============================================================================
@@ -367,7 +371,14 @@ merge_fallback <- family_demos_fixed |>
 
 family_demos_clean <- family_demos_fixed |>
   filter(!bblid %in% id_merges$drop_bblid) |>
-  rows_patch(merge_fallback, by = "bblid")
+  rows_patch(merge_fallback, by = "bblid") |> 
+  select(-c( 
+      contains("name"),
+      suffix,
+      sex_hx,
+      otherid,
+      rel_to_proband_original
+    ))
 
 # ==============================================================================
 # Create Final 22q Subject Dataset (Not generated) ----
