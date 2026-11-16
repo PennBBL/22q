@@ -272,7 +272,7 @@ sex_fixes = tribble(
   ~bblid, ~rel_to_proband, ~sex,
   24280, "Mother", 2, # Sex 3 -> 2
   24109, "Mother", 2, # Sex 1 -> 2, fname=Stacey? (ambig.)
-  20459, "Mother", 2, # Sex 1 -> 2, fname=Jennifer (no dob)
+  # 20459, "Mother", 2, # Sex 1 -> 2, fname=Jennifer (no dob)
   20478, "Mother", 2, # Sex 1 -> 2, fname=Maria (no dob)
   25577, "Mother", 2, # Sex 1 -> 2, fname=Christina
   23879, "Mother", 2, # Sex 1 -> 2, fname=Michele (ambig?)
@@ -351,16 +351,16 @@ family_demos_fixed = family_demos |>
 
 id_merges <- tribble(
   ~keep_bblid, ~drop_bblid,
-  21447,       24786,   
-  20000,       20869,
-  24090,       20001,
-  23393,       20459,
-  24096,       24179,
-  21400,       21398, 
-  21466,       20444, 
-  24341,       20805, 
-  22093,       20040,
-  19693,       21240
+  # 21447,       24786,   
+  24341,       20805
+  # 20000,       20869,
+  # 24090,       20001,
+  # 23393,       20459,
+  # 24096,       24179,
+  # 21400,       21398, 
+  # 21466,       20444, 
+  # 22093,       20040,
+  # 19693,       21240
 )
 
 # The records being merged away, relabeled with the favored ID
