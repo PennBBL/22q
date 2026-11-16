@@ -410,19 +410,19 @@ subject_ext_demos <- read_csv(input_paths$subject_ext_demos, show_col_types=FALS
 height_weight_bmi = family_demos_clean |> 
   select(bblid, famid, rel_to_proband, proband) |> 
   right_join(
-    subject_ext_demos |> select(bblid, height, weight, bmi)
+    subject_ext_demos |> select(bblid, docollect, height, weight, bmi)
   )
 
 education_family = family_demos_clean |> 
   select(bblid, famid, rel_to_proband, proband) |> 
   right_join(
-    subject_ext_demos |> select(bblid, contains("edu"))
+    subject_ext_demos |> select(bblid, docollect, contains("edu"))
   )
 
 ses_oracle_family = family_demos_clean |> 
   select(bblid, famid, rel_to_proband, proband) |> 
   right_join(
-    subject_ext_demos |> select(bblid, contains("ses"))
+    subject_ext_demos |> select(bblid, docollect, contains("ses"))
   )
 
 # ==============================================================================
